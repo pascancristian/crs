@@ -1,0 +1,313 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>H-CRS Validation Dataset Preview</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #121823;
+      --muted: #8892a6;
+      --fg: #e6eefc;
+      --accent: #6aa4ff;
+      --accent-2: #2dd4bf;
+      --warning: #fbbf24;
+      --success: #34d399;
+      --chip: #1f2735;
+      --chip-border: #263146;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; background: var(--bg); color: var(--fg); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
+    a { color: var(--accent); text-decoration: none; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
+    header { display:flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    .title { font-weight: 700; font-size: 22px; letter-spacing: .3px; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+    .toolbar { display:flex; gap: 10px; flex-wrap: wrap; }
+    input[type="search"], select {
+      background: var(--card);
+      color: var(--fg);
+      border: 1px solid #22304a;
+      border-radius: 10px;
+      padding: 10px 12px;
+      outline: none;
+      min-width: 220px;
+    }
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--chip);
+      border: 1px solid var(--chip-border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid #22304a;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .card-header {
+      display:flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid #22304a;
+    }
+    .topic {
+      display:flex; align-items: center; gap: 6px; font-weight: 600;
+    }
+    .topic .chip {
+      background: var(--chip);
+      border: 1px solid var(--chip-border);
+      border-radius: 8px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+    .counts { color: var(--muted); font-size: 12px; }
+    .card-body { padding: 12px 16px 16px; display: grid; gap: 10px; }
+    .qa { display: grid; gap: 10px; border: 1px dashed #2a3856; padding: 12px; border-radius: 10px; }
+    .question { font-weight: 600; }
+    .answer-grid {
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .answer {
+      background: #0f1520;
+      border: 1px solid #23314d;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .answer h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+    .answer pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #dbe7ff;
+    }
+    .controls { display:flex; gap: 8px; align-items:center; flex-wrap: wrap; }
+    button {
+      background: linear-gradient(135deg, #2a4373, #1e2f53);
+      color: var(--fg);
+      border: 1px solid #274171;
+      border-radius: 10px;
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    button.secondary { background: #172031; border-color: #203150; }
+    details > summary {
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    details > summary::-webkit-details-marker { display:none; }
+    .hidden { display: none !important; }
+    .footer { margin-top: 24px; color: var(--muted); font-size: 12px; text-align:center; }
+    @media (min-width: 860px) {
+      .answer-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="title">H-CRS Validation Dataset Preview</div>
+        <div class="subtitle">Dynamically loaded from <code>validation_set.json</code></div>
+      </div>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search question or response…" />
+        <select id="topicFilter">
+          <option value="">All topics</option>
+        </select>
+        <select id="viewFilter">
+          <option value="all">Show: All</option>
+          <option value="hcrs">Only H-CRS answers</option>
+          <option value="chatgpt">Only ChatGPT answers</option>
+        </select>
+        <button id="expandAll" class="secondary">Expand all</button>
+        <button id="collapseAll" class="secondary">Collapse all</button>
+        <button id="downloadFiltered">Download filtered</button>
+      </div>
+    </header>
+
+    <div id="stats" class="pill">Loading…</div>
+    <div id="grid" class="grid"></div>
+
+    <div class="footer">
+      Built for quick qualitative review. Use search, topic filter, and view options to explore.
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      data: [],
+      filtered: [],
+      topics: [],
+      view: 'all',
+      topic: '',
+      q: ''
+    };
+
+    function escapeHtml(str) {
+      return (str||'').replace(/[&<>"']/g, m => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#039;'
+      }[m]));
+    }
+
+    function groupByTopic(items) {
+      const map = new Map();
+      for (const it of items) {
+        const t = (it.topic || 'Untitled').trim();
+        if (!map.has(t)) map.set(t, []);
+        map.get(t).push(it);
+      }
+      return map;
+    }
+
+    function applyFilters() {
+      const q = state.q.toLowerCase();
+      const topic = state.topic;
+      const view = state.view;
+
+      let items = state.data.filter(it => {
+        // topic filter
+        if (topic && (it.topic || '').trim() !== topic) return false;
+        // search
+        const hay = ((it.question||'') + ' ' + (it.hcrs_response||'') + ' ' + (it.chatgpt_response||'')).toLowerCase();
+        if (q && !hay.includes(q)) return false;
+        return true;
+      });
+
+      state.filtered = items;
+      render();
+    }
+
+    function render() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      const grouped = groupByTopic(state.filtered);
+      const total = state.filtered.length;
+      const allTopics = [...grouped.keys()];
+      document.getElementById('stats').textContent = `Showing ${total} entries in ${allTopics.length} topic(s)`;
+
+      for (const [topic, entries] of grouped) {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        header.innerHTML = `
+          <div class="topic">
+            <span class="chip">Topic</span> ${escapeHtml(topic)}
+          </div>
+          <div class="counts">${entries.length} item(s)</div>
+        `;
+        card.appendChild(header);
+
+        const body = document.createElement('div');
+        body.className = 'card-body';
+
+        entries.forEach((it, idx) => {
+          const qa = document.createElement('details');
+          qa.className = 'qa';
+          qa.open = false;
+          const summary = document.createElement('summary');
+          summary.innerHTML = `<span class="question">${escapeHtml(it.question || '(no question)')}</span>`;
+          qa.appendChild(summary);
+
+          const answers = document.createElement('div');
+          answers.className = 'answer-grid';
+
+          const h = document.createElement('div');
+          h.className = 'answer hcrs';
+          h.innerHTML = `<h4>H-CRS</h4><pre>${escapeHtml(it.hcrs_response||'')}</pre>`;
+
+          const c = document.createElement('div');
+          c.className = 'answer chatgpt';
+          c.innerHTML = `<h4>ChatGPT</h4><pre>${escapeHtml(it.chatgpt_response||'')}</pre>`;
+
+          answers.appendChild(h);
+          answers.appendChild(c);
+          qa.appendChild(answers);
+
+          body.appendChild(qa);
+        });
+
+        card.appendChild(body);
+        grid.appendChild(card);
+      }
+
+      // view filter (hide columns)
+      const showH = state.view === 'all' || state.view === 'hcrs';
+      const showC = state.view === 'all' || state.view === 'chatgpt';
+      document.querySelectorAll('.answer.hcrs').forEach(el => el.style.display = showH ? '' : 'none');
+      document.querySelectorAll('.answer.chatgpt').forEach(el => el.style.display = showC ? '' : 'none');
+    }
+
+    function populateTopicFilter() {
+      const topics = [...new Set(state.data.map(d => (d.topic||'').trim()))].filter(Boolean).sort();
+      state.topics = topics;
+      const sel = document.getElementById('topicFilter');
+      sel.innerHTML = '<option value="">All topics</option>' + topics.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    }
+
+    async function init() {
+      try {
+        const res = await fetch('validation_set.json', {cache:'no-store'});
+        const data = await res.json();
+        state.data = data;
+        state.filtered = data;
+        populateTopicFilter();
+        render();
+      } catch (e) {
+        document.getElementById('grid').innerHTML = `<div class="pill">Failed to load validation_set.json: ${e}</div>`;
+      }
+
+      document.getElementById('search').addEventListener('input', (e) => {
+        state.q = e.target.value || '';
+        applyFilters();
+      });
+      document.getElementById('topicFilter').addEventListener('change', (e) => {
+        state.topic = e.target.value || '';
+        applyFilters();
+      });
+      document.getElementById('viewFilter').addEventListener('change', (e) => {
+        state.view = e.target.value || 'all';
+        applyFilters();
+      });
+      document.getElementById('expandAll').addEventListener('click', () => {
+        document.querySelectorAll('.qa').forEach(d => d.open = true);
+      });
+      document.getElementById('collapseAll').addEventListener('click', () => {
+        document.querySelectorAll('.qa').forEach(d => d.open = false);
+      });
+      document.getElementById('downloadFiltered').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state.filtered, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'validation_set.filtered.json';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
