@@ -16,12 +16,11 @@ Each topic represents a distinct type of conversational interaction:
 5. **Product Comparisons** – Comparative reasoning between similar products.  
 6. **Boundary and Clarification Handling** – Ambiguous user requests that require follow-up clarification.
 
-Each entry in the dataset includes:
-- The **user question**,  
-- The **H-CRS response**,  
-- The **ChatGPT baseline response**,  
-- And an optional **expected behavior** description.
-
+Each entry in the dataset it's stored in validation_set.json and includes a list of question JSON formated with the following fields:
+- topic - Group of the question
+- question - Text of the question
+- hcrs_response - Response from out CRS solution
+- chatgpt_response - Response from chatgpt
 ---
 
 ## Reference
